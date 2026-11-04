@@ -26,12 +26,17 @@ Open the local URL printed by Vite (normally `http://localhost:5173`).
 | `npm run build` | Create the production frontend build in `client/dist` |
 | `npm test` | Run the traffic-simulation logic tests |
 
-## Deploy to Vercel
+## Deploy to GitHub Pages
 
-1. Push the repository to GitHub.
-2. Import it into Vercel and set the **Root Directory** to the repository root.
-3. Use `npm run build` as the build command and `client/dist` as the output directory.
-4. Deploy. No database or environment variables are needed.
+The GitHub Actions workflow builds the client and publishes it to GitHub Pages. It uses the repository path `/smart_traffic_system-/` when building asset links.
+
+1. Push the repository to the `main` branch on GitHub.
+2. In the repository, open **Settings → Pages** and change **Source** to **GitHub Actions**.
+3. If Pages shows an invalid custom-domain warning, remove the value `mart_traffic_system` from the **Custom domain** setting and save. Leave the custom domain empty unless you own a properly formatted domain.
+4. Open the **Actions** tab and wait for the **Deploy to GitHub Pages** workflow to finish successfully.
+5. Visit `https://abhinandanmaurya10-art.github.io/smart_traffic_system-/`.
+
+The deployment uses GitHub's default Pages domain. No database, environment variables, or custom domain are required.
 
 ## Simulation and saved runs
 
@@ -45,6 +50,7 @@ Open the local URL printed by Vite (normally `http://localhost:5173`).
 ## Project layout
 
 ```text
+.github/workflows/pages.yml GitHub Pages build and deployment workflow
 package.json            Root scripts and project dependencies
 package-lock.json       Locked dependency versions
 client/

@@ -185,7 +185,7 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Flowstate home">
+        <a className="brand" href="./" aria-label="Flowstate home">
           <span className="brand-mark">F</span>
           <span>flowstate<span className="brand-dot">.</span></span>
         </a>
