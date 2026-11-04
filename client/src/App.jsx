@@ -1,28 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getSignalPlayback, runSimulation } from "./simulation.js";
 
 const ROADS = ["North", "South", "East", "West"];
 const DEFAULT_COUNTS = { North: 10, South: 6, East: 18, West: 8 };
 const DEFAULT_WEIGHTS = { vehicle_count: 1, waiting_time: 0.5, pedestrian: 2 };
+const HISTORY_STORAGE_KEY = "flowstate-simulation-history";
 
-async function request(path, options) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error || "The request could not be completed.");
-  }
-  return result;
-}
-
-function TrafficLight({ color = "red", timer }) {
+function TrafficLight({ color = "red", timer, animated = false }) {
   return (
     <div className="signal-unit" aria-label={`${color} signal`}>
       <div className="signal-housing">
         {["red", "yellow", "green"].map((bulb) => (
           <span
-            className={`signal-bulb ${bulb} ${color === bulb ? "lit" : ""}`}
+            className={`signal-bulb ${bulb} ${color === bulb ? "lit" : ""} ${color === bulb && animated ? "animated" : ""}`}
             key={bulb}
           />
         ))}
@@ -32,12 +22,15 @@ function TrafficLight({ color = "red", timer }) {
   );
 }
 
-function Junction({ cycle }) {
+function Junction({ cycle, phase, secondsRemaining, isPlaying }) {
   const activeRoad = cycle?.selectedRoad;
-  const timer = cycle?.greenTimeSeconds;
   const road = (name) => (
     <div className={`junction-road ${activeRoad === name ? "is-active" : ""}`} key={name}>
-      <TrafficLight color={activeRoad === name ? "green" : "red"} timer={activeRoad === name ? timer : undefined} />
+      <TrafficLight
+        color={activeRoad === name && phase !== "complete" && phase !== "all-red" ? phase : "red"}
+        timer={activeRoad === name && phase !== "complete" ? secondsRemaining : undefined}
+        animated={isPlaying && activeRoad === name && (phase === "green" || phase === "yellow")}
+      />
       <span className="road-name">{name}</span>
       <span className="road-count">{cycle?.counts?.[name] ?? "—"} vehicles</span>
       {cycle?.pedestrianRoads?.includes(name) && <span className="road-badge">Walk request</span>}
@@ -77,35 +70,64 @@ export default function App() {
   const [pedestrianRoads, setPedestrianRoads] = useState([]);
   const [emergencyRoad, setEmergencyRoad] = useState("");
   const [history, setHistory] = useState([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [current, setCurrent] = useState(null);
   const [activeCycle, setActiveCycle] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [playbackStartedAt, setPlaybackStartedAt] = useState(null);
+  const [playbackNow, setPlaybackNow] = useState(0);
+  const [playbackComplete, setPlaybackComplete] = useState(false);
   const [error, setError] = useState("");
-  const [apiReady, setApiReady] = useState(null);
 
-  const loadHistory = useCallback(async () => {
+  useEffect(() => {
     try {
-      const [runs, health] = await Promise.all([
-        request("/api/simulations"),
-        request("/api/health"),
-      ]);
-      setHistory(runs);
-      setApiReady(health.database === "connected");
-    } catch (requestError) {
-      setApiReady(false);
-      setError(requestError.message);
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (!Array.isArray(parsedHistory)) {
+          throw new Error("Saved simulation history is invalid.");
+        }
+        setHistory(parsedHistory);
+      }
+    } catch (storageError) {
+      setError(`Could not load browser history: ${storageError.message}`);
+    } finally {
+      setHistoryLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    if (!historyLoaded) return;
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+    } catch (storageError) {
+      setError(`Could not save browser history: ${storageError.message}`);
+    }
+  }, [history, historyLoaded]);
 
-  const selectedCycle = current?.cycles?.[activeCycle] || null;
-  const stats = useMemo(() => {
-    if (!current) return null;
-    return current.summary;
-  }, [current]);
+  useEffect(() => {
+    if (playbackStartedAt === null) return undefined;
+    const timer = window.setInterval(() => setPlaybackNow(Date.now()), 50);
+    return () => window.clearInterval(timer);
+  }, [playbackStartedAt]);
+
+  const playback = useMemo(() => (
+    current && playbackStartedAt !== null
+      ? getSignalPlayback(current.cycles, playbackNow - playbackStartedAt)
+      : null
+  ), [current, playbackNow, playbackStartedAt]);
+  const isPlaying = playback !== null && playback.phase !== "complete";
+  const displayedCycleIndex = playback?.cycleIndex
+    ?? (playbackComplete && current ? current.cycles.length - 1 : activeCycle);
+  const phase = playback?.phase ?? (playbackComplete ? "complete" : "green");
+  const selectedCycle = current?.cycles?.[displayedCycleIndex] || null;
+  const stats = current?.summary;
+
+  useEffect(() => {
+    if (playback?.phase === "complete") {
+      setPlaybackStartedAt(null);
+      setPlaybackComplete(true);
+    }
+  }, [playback]);
 
   function updateCount(road, value) {
     setCounts((previous) => ({ ...previous, [road]: Number(value) }));
@@ -117,14 +139,12 @@ export default function App() {
     );
   }
 
-  async function startSimulation(event) {
+  function startSimulation(event) {
     event.preventDefault();
-    setLoading(true);
     setError("");
     try {
-      const result = await request("/api/simulations", {
-        method: "POST",
-        body: JSON.stringify({
+      const result = {
+        ...runSimulation({
           initialCounts: counts,
           cycles,
           mode,
@@ -133,22 +153,33 @@ export default function App() {
           pedestrianRoads,
           emergencyRoad: emergencyRoad || null,
         }),
-      });
+        _id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        createdAt: new Date().toISOString(),
+      };
       setCurrent(result);
       setActiveCycle(0);
-      setHistory((previous) => [result, ...previous.filter((run) => run._id !== result._id)].slice(0, 10));
-      setApiReady(true);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
+      const startedAt = Date.now();
+      setPlaybackNow(startedAt);
+      setPlaybackStartedAt(startedAt);
+      setPlaybackComplete(false);
+      setHistory((previous) => [result, ...previous].slice(0, 10));
+    } catch (simulationError) {
+      setError(simulationError.message);
     }
   }
 
   function showRun(run) {
     setCurrent(run);
     setActiveCycle(0);
+    setPlaybackStartedAt(null);
+    setPlaybackComplete(false);
     setError("");
+  }
+
+  function showCycle(index) {
+    setPlaybackStartedAt(null);
+    setPlaybackComplete(false);
+    setActiveCycle(index);
   }
 
   return (
@@ -160,8 +191,8 @@ export default function App() {
         </a>
         <div className="topbar-meta">
           <span className="system-label">TRAFFIC INTELLIGENCE PLATFORM</span>
-          <span className={`connection ${apiReady ? "connected" : apiReady === false ? "disconnected" : ""}`}>
-            <i /> {apiReady ? "SYSTEM ONLINE" : apiReady === false ? "API OFFLINE" : "CONNECTING"}
+          <span className="connection connected">
+            <i /> BROWSER MODE
           </span>
         </div>
       </header>
@@ -232,30 +263,46 @@ export default function App() {
               </details>
             )}
 
-            <button className="run-button" disabled={loading} type="submit">
-              {loading ? <><span className="spinner" /> RUNNING SIMULATION</> : <>RUN SIMULATION <span>↗</span></>}
-            </button>
-            <p className="form-footnote">Each run is saved to your MongoDB history.</p>
+            <button className="run-button" type="submit">RUN SIMULATION <span>↗</span></button>
+            <p className="form-footnote">Runs are saved in this browser on this device.</p>
           </form>
         </aside>
 
         <section className="live-panel panel">
           <div className="panel-heading live-heading">
             <div><span className="section-index">02 / INTERSECTION</span><h2>Signal monitor</h2></div>
-            <span className={`live-pill ${current ? "live-active" : ""}`}><i /> {current ? `CYCLE ${String(activeCycle + 1).padStart(2, "0")} / ${String(current.cycles.length).padStart(2, "0")}` : "STANDBY"}</span>
+            <span className={`live-pill ${isPlaying ? "live-active" : ""}`}>
+              <i /> {isPlaying
+                ? `LIVE · CYCLE ${String(displayedCycleIndex + 1).padStart(2, "0")} / ${String(current.cycles.length).padStart(2, "0")}`
+                : playbackComplete ? "SIMULATION COMPLETE"
+                  : current ? `CYCLE ${String(displayedCycleIndex + 1).padStart(2, "0")} / ${String(current.cycles.length).padStart(2, "0")}` : "STANDBY"}
+            </span>
           </div>
           {selectedCycle ? (
             <>
-              <div className="monitor-status">
+              <div className="monitor-status" data-phase={phase}>
                 <span className="status-light" />
-                <span>{selectedCycle.selectedRoad} approach is green</span>
-                <strong>{selectedCycle.greenTimeSeconds}<small> SEC</small></strong>
+                <span>{phase === "complete"
+                  ? "Simulation complete · all signals red"
+                  : phase === "all-red"
+                    ? "All signals red · safety gap"
+                    : `${selectedCycle.selectedRoad} approach is ${phase}`}
+                </span>
+                <strong>
+                  {phase === "complete" ? "DONE" : (playback?.secondsRemaining ?? selectedCycle.greenTimeSeconds)}
+                  {phase !== "complete" && <small> SEC</small>}
+                </strong>
               </div>
-              <Junction cycle={selectedCycle} />
+              <Junction
+                cycle={selectedCycle}
+                phase={phase}
+                secondsRemaining={playback?.secondsRemaining ?? selectedCycle.greenTimeSeconds}
+                isPlaying={isPlaying}
+              />
               <div className="cycle-scrubber">
                 <span>RUN CYCLE</span>
-                <input aria-label="Choose cycle to view" type="range" min="0" max={current.cycles.length - 1} value={activeCycle} onChange={(event) => setActiveCycle(Number(event.target.value))} />
-                <span>{String(activeCycle + 1).padStart(2, "0")}<small> / {String(current.cycles.length).padStart(2, "0")}</small></span>
+                <input aria-label="Choose cycle to view" type="range" min="0" max={current.cycles.length - 1} value={displayedCycleIndex} onChange={(event) => showCycle(Number(event.target.value))} />
+                <span>{String(displayedCycleIndex + 1).padStart(2, "0")}<small> / {String(current.cycles.length).padStart(2, "0")}</small></span>
               </div>
             </>
           ) : (
@@ -287,7 +334,7 @@ export default function App() {
               <thead><tr><th>CYCLE</th><th>GREEN APPROACH</th><th>VEHICLES</th><th>GREEN TIME</th><th>WAIT CYCLES</th></tr></thead>
               <tbody>
                 {current.cycles.map((cycle, index) => (
-                  <tr className={activeCycle === index ? "active-row" : ""} key={`${cycle.cycle}-${index}`} onClick={() => setActiveCycle(index)}>
+                  <tr className={displayedCycleIndex === index ? "active-row" : ""} key={`${cycle.cycle}-${index}`} onClick={() => showCycle(index)}>
                     <td>{String(cycle.cycle).padStart(2, "0")}</td>
                     <td><span className="table-road-dot" />{cycle.selectedRoad}</td>
                     <td>{cycle.vehiclesOnSelectedRoad}</td><td>{cycle.greenTimeSeconds}s</td><td>{cycle.waitCyclesBeforeService}</td>

@@ -1,9 +1,10 @@
-export const ROADS = Object.freeze(["North", "South", "East", "West"]);
-export const MIN_GREEN_TIME = 5;
-export const MAX_GREEN_TIME = 30;
-export const YELLOW_TIME = 3;
-export const ALL_RED_GAP = 1;
-export const DEFAULT_WEIGHTS = Object.freeze({
+const ROADS = Object.freeze(["North", "South", "East", "West"]);
+const MIN_GREEN_TIME = 5;
+const MAX_GREEN_TIME = 30;
+const YELLOW_TIME = 3;
+const ALL_RED_GAP = 1;
+export const PLAYBACK_MS_PER_SECOND = 200;
+const DEFAULT_WEIGHTS = Object.freeze({
   vehicle_count: 1,
   waiting_time: 0.5,
   pedestrian: 2,
@@ -11,7 +12,7 @@ export const DEFAULT_WEIGHTS = Object.freeze({
 
 const DEFAULT_COUNTS = Object.freeze({ North: 10, South: 6, East: 18, West: 8 });
 
-export function clampVehicleCount(count) {
+function clampVehicleCount(count) {
   return Math.max(0, Math.min(count, 100));
 }
 
@@ -20,7 +21,7 @@ export function calculateGreenTime(vehicleCount) {
   return Math.max(MIN_GREEN_TIME, Math.min(MIN_GREEN_TIME + Math.floor(boundedCount / 2), MAX_GREEN_TIME));
 }
 
-export function calculatePriorityScore(state, weights = DEFAULT_WEIGHTS) {
+function calculatePriorityScore(state, weights = DEFAULT_WEIGHTS) {
   return (
     (weights.vehicle_count ?? 1) * state.vehicleCount +
     (weights.waiting_time ?? 0) * state.waitCycles +
@@ -63,6 +64,49 @@ export function fixedTimeChoice(roads, lastIndex = -1) {
     throw new TypeError("At least one road is required for fixed-time scheduling.");
   }
   return roads[(lastIndex + 1) % roads.length];
+}
+
+export function getSignalPlayback(cycles, elapsedMs) {
+  let remainingMs = Math.max(0, elapsedMs);
+
+  for (let index = 0; index < cycles.length; index += 1) {
+    const cycle = cycles[index];
+    const greenDurationMs = cycle.greenTimeSeconds * PLAYBACK_MS_PER_SECOND;
+    if (remainingMs < greenDurationMs) {
+      return {
+        cycleIndex: index,
+        phase: "green",
+        secondsRemaining: Math.ceil((greenDurationMs - remainingMs) / PLAYBACK_MS_PER_SECOND),
+      };
+    }
+    remainingMs -= greenDurationMs;
+
+    const yellowDurationMs = YELLOW_TIME * PLAYBACK_MS_PER_SECOND;
+    if (remainingMs < yellowDurationMs) {
+      return {
+        cycleIndex: index,
+        phase: "yellow",
+        secondsRemaining: Math.ceil((yellowDurationMs - remainingMs) / PLAYBACK_MS_PER_SECOND),
+      };
+    }
+    remainingMs -= yellowDurationMs;
+
+    const allRedDurationMs = ALL_RED_GAP * PLAYBACK_MS_PER_SECOND;
+    if (remainingMs < allRedDurationMs) {
+      return {
+        cycleIndex: index,
+        phase: "all-red",
+        secondsRemaining: Math.ceil((allRedDurationMs - remainingMs) / PLAYBACK_MS_PER_SECOND),
+      };
+    }
+    remainingMs -= allRedDurationMs;
+  }
+
+  return {
+    cycleIndex: Math.max(cycles.length - 1, 0),
+    phase: "complete",
+    secondsRemaining: 0,
+  };
 }
 
 function validateInput(input) {
@@ -172,7 +216,6 @@ export function runSimulation(input, random = Math.random) {
   const totalSignalTimeSeconds = totalGreenTimeSeconds + cycles * (YELLOW_TIME + ALL_RED_GAP);
   return {
     mode,
-    initialCounts: Object.fromEntries(ROADS.map((road) => [road, initialCounts[road]])),
     cycles: cycleLog,
     summary: {
       totalVehiclesPrioritized,

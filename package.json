@@ -1,19 +1,21 @@
 {
-  "name": "smart-traffic-system-mern",
+  "name": "smart-traffic-system",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "client",
-    "server"
-  ],
+  "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w client",
-    "start": "npm run start -w server",
-    "test": "npm run test -w server"
+    "dev": "vite --config client/vite.config.js client",
+    "build": "vite build --config client/vite.config.js client",
+    "preview": "vite preview --config client/vite.config.js client",
+    "test": "node --test client/tests/simulation.test.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.5"
   },
   "engines": {
     "node": ">=20"

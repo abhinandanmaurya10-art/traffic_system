@@ -4,6 +4,8 @@ import {
   calculateGreenTime,
   chooseRoad,
   fixedTimeChoice,
+  getSignalPlayback,
+  PLAYBACK_MS_PER_SECOND,
   runSimulation,
   updateStarvationCounters,
 } from "../src/simulation.js";
@@ -35,6 +37,28 @@ test("fixed-time scheduler rotates in the supplied road order", () => {
   assert.equal(fixedTimeChoice(roads), "North");
   assert.equal(fixedTimeChoice(roads, 0), "South");
   assert.equal(fixedTimeChoice(roads, 3), "North");
+});
+
+test("live playback advances through green, yellow, all-red, and subsequent cycles", () => {
+  const cycles = [
+    { selectedRoad: "North", greenTimeSeconds: 5 },
+    { selectedRoad: "South", greenTimeSeconds: 10 },
+  ];
+  const firstCycleDuration = (5 + 3 + 1) * PLAYBACK_MS_PER_SECOND;
+
+  assert.deepEqual(getSignalPlayback(cycles, 0), {
+    cycleIndex: 0,
+    phase: "green",
+    secondsRemaining: 5,
+  });
+  assert.equal(getSignalPlayback(cycles, 5 * PLAYBACK_MS_PER_SECOND).phase, "yellow");
+  assert.equal(getSignalPlayback(cycles, 8 * PLAYBACK_MS_PER_SECOND).phase, "all-red");
+  assert.deepEqual(getSignalPlayback(cycles, firstCycleDuration), {
+    cycleIndex: 1,
+    phase: "green",
+    secondsRemaining: 10,
+  });
+  assert.equal(getSignalPlayback(cycles, Infinity).phase, "complete");
 });
 
 test("serving a road resets its wait and clears served requests", () => {
