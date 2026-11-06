@@ -37,7 +37,7 @@ button { cursor: pointer; }
 .hero-copy { position: relative; z-index: 1; max-width: 570px; }
 .eyebrow { display: flex; align-items: center; gap: 10px; color: #9dab9e; font-size: 9px; }
 .eyebrow-line { width: 18px; height: 1px; background: var(--lime); }
-h1 { margin: 19px 0 13px; font: 500 clamp(42px, 5vw, 66px)/.99 var(--display); letter-spacing: -3.4px; }
+h1 { margin: 19px 0 13px; font: 500 clamp(48px, 5.4vw, 74px)/.99 var(--display); letter-spacing: -3.4px; }
 h1 em { color: var(--lime); font-weight: 400; }
 .hero-copy p { margin: 0; max-width: 475px; color: #9aa8a0; font-size: 13px; line-height: 1.7; }
 .hero-stamp { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 106px; height: 106px; margin-right: 7%; border: 1px solid #39483e; border-radius: 50%; transform: rotate(9deg); }
@@ -189,7 +189,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   .topbar { height: 66px; }
   .system-label { display: none; }
   .hero { min-height: 240px; padding: 35px 2%; }
-  h1 { font-size: 49px; }
+  h1 { font-size: 54px; }
   .hero-stamp { width: 78px; height: 78px; margin-right: 0; }
   .hero-stamp strong { font-size: 13px; }
   .hero-stamp span, .hero-stamp small { font-size: 7px; }
@@ -274,33 +274,36 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .history-item:hover, .history-selected { background: #f0f2f6; }
 .footer b { color: #287544; }
 
-.brand { font-size: 23px; }
-.system-label, .footer { font-size: 10px; }
+.brand { font-size: 25px; }
+.system-label, .footer { font-size: 12px; }
 .connection, .eyebrow, .section-index, .field-label, .history-count,
-.unit-label, .hero-stamp span, .hero-stamp small { font-size: 11px; }
+.unit-label { font-size: 12px; }
+.hero-stamp span, .hero-stamp small { font-size: 10px; }
+.connection { font-size: 11px; }
 .hero-copy p, .error-banner, .mode-toggle button, .field-hint,
 .count-field, .request-item, .control-panel select,
 .advanced-settings, .slider-setting, .form-footnote,
-.monitor-status, .history-run-name strong { font-size: 12px; }
-.panel-heading h2 { font-size: 22px; }
+.monitor-status, .history-run-name strong, .empty-monitor > p { font-size: 14px; }
+.panel-heading h2 { font-size: 24px; }
 .count-field input, .slider-setting input, .cycle-table td,
-.history-result { font-size: 14px; }
-.cycle-value, .monitor-status strong { font-size: 16px; }
-.hero-stamp strong { font-size: 19px; }
-.road-name { font-size: 13px; }
+.history-result { font-size: 16px; }
+.cycle-value, .monitor-status strong { font-size: 18px; }
+.hero-stamp strong { font-size: 20px; }
+.road-name { font-size: 15px; }
 .road-count, .road-badge, .stat-label, .stat-detail,
 .cycle-table th, .history-run-name small, .history-result small,
-.signal-timer, .cycle-scrubber { font-size: 10px; }
-.stat-value { font-size: 21px; }
-.junction-center { font-size: 10px; }
-.cycle-scrubber > span:last-child { font-size: 12px; }
-.cycle-scrubber small, .monitor-status strong small { font-size: 10px; }
+.signal-timer, .cycle-scrubber { font-size: 12px; }
+.stat-value { font-size: 24px; }
+.junction-center { font-size: 12px; }
+.empty-monitor > strong { font-size: 18px; }
+.cycle-scrubber > span:last-child { font-size: 14px; }
+.cycle-scrubber small, .monitor-status strong small { font-size: 12px; }
 
 @media (max-width: 560px) {
-  .brand { font-size: 21px; }
-  .hero-stamp strong { font-size: 15px; }
-  .hero-stamp span, .hero-stamp small { font-size: 9px; }
-  .stat-label, .stat-detail { font-size: 9px; }
-  .stat-value { font-size: 18px; }
-  .footer { font-size: 9px; }
+  .brand { font-size: 23px; }
+  .hero-stamp strong { font-size: 16px; }
+  .hero-stamp span, .hero-stamp small { font-size: 10px; }
+  .stat-label, .stat-detail { font-size: 11px; }
+  .stat-value { font-size: 20px; }
+  .footer { font-size: 10px; }
 }
